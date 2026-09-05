@@ -1,0 +1,72 @@
+{
+  "selected": "v6/v6_holdout_pred",
+  "holdout_top1": 0.3735,
+  "final": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\final\\submission.csv",
+  "leaderboard": [
+    {
+      "name": "v6/v6_holdout_pred",
+      "holdout_top1": 0.3735,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v6\\v6_test_pred.csv"
+    },
+    {
+      "name": "v7/v7_holdout_pred",
+      "holdout_top1": 0.366,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v7\\v7_test_pred.csv"
+    },
+    {
+      "name": "v5/v5_holdout_pred",
+      "holdout_top1": 0.3275,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v5\\v5_test_pred.csv"
+    },
+    {
+      "name": "v6big/v6big_holdout_pred",
+      "holdout_top1": 0.3175,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v6big\\v6big_test_pred.csv"
+    },
+    {
+      "name": "v6s2/v6s2_holdout_pred",
+      "holdout_top1": 0.313,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v6s2\\v6s2_test_pred.csv"
+    },
+    {
+      "name": "v4/v4_holdout_pred",
+      "holdout_top1": 0.307,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v4\\v4_test_pred.csv"
+    },
+    {
+      "name": "v3/v3_holdout_pred",
+      "holdout_top1": 0.2985,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v3\\v3_test_pred.csv"
+    },
+    {
+      "name": "v2/v2_holdout_pred",
+      "holdout_top1": 0.295,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v2\\v2_test_pred.csv"
+    },
+    {
+      "name": "v6s1/v6s1_holdout_pred",
+      "holdout_top1": 0.287,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v6s1\\v6s1_test_pred.csv"
+    },
+    {
+      "name": "v1/v1_holdout_pred",
+      "holdout_top1": 0.2765,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v1\\v1_test_pred.csv"
+    },
+    {
+      "name": "v0/lookup_holdout_pred",
+      "holdout_top1": 0.1135,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v0\\lookup_test_pred.csv"
+    },
+    {
+      "name": "v0/knn_holdout_pred",
+      "holdout_top1": 0.0975,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v0\\knn_test_pred.csv"
+    },
+    {
+      "name": "v0/identity_holdout_pred",
+      "holdout_top1": 0.0335,
+      "test_pred": "C:\\Users\\simon\\OneDrive - Johannes Kepler Universit\u00e4t Linz\\Uni\\AI for Life Sciences\\Synthesis-Challenge\\predictions\\v0\\identity_test_pred.csv"
+    }
+  ]
+}

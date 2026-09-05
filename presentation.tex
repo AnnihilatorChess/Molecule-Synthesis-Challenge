@@ -1,0 +1,282 @@
+% Synthesis Challenge -- presentation
+% Compile with: pdflatex presentation.tex  (run twice for refs)
+% Uses default beamer theme so it compiles without extra packages.
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage{xcolor}
+
+\usetheme{default}
+\usecolortheme{seahorse}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+
+% tighter list spacing
+\setlength{\leftmargini}{1.2em}
+
+\title{Synthesis Challenge}
+\subtitle{Single-step retrosynthesis: template-free seq2seq, ensembling \& reranking}
+\author{Simon Danninger}
+\institute{JKU Linz -- AI in Life Sciences}
+\date{}
+
+\begin{document}
+
+% ------------------------------------------------------------------
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{1. The challenge}
+  \textbf{Task.} \emph{Single-step retrosynthesis.} Given a \textbf{product}
+  SMILES, predict the \textbf{reactant(s)} (one or more fragments joined by
+  \texttt{.}). Training pairs are reaction SMILES
+  \texttt{reactants >> products} -- \emph{no atom mapping}.
+
+  \medskip
+  \textbf{Data.}
+  \begin{itemize}
+    \item \texttt{data\_train.csv} -- 40{,}000 reaction rows.
+    \item \texttt{product\_smiles\_test.csv} -- 10{,}000 products to solve.
+  \end{itemize}
+
+  \medskip
+  \textbf{Metric -- top-1 exact match.} Correct iff the \emph{set} of
+  RDKit-canonical predicted reactants equals the set of true reactants
+  (order-agnostic, fragment-wise). One prediction per product; never emit
+  empty lines.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{2. EDA -- what the data told us}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.50\textwidth}
+    \textbf{Clean \& small}
+    \begin{itemize}
+      \item 40k/40k train, 10k/10k test parse under RDKit
+      \item Tiny molecules: product token len mean 13, max 25
+        ($\Rightarrow$ \texttt{max\_len = 64} never truncates)
+      \item Shared vocab = 50 tokens, \textbf{0 \texttt{<unk>}}
+      \item Fragments per reaction: 1$\to$62\%, 2$\to$34\%, 3+$\to$4\%
+    \end{itemize}
+
+    \column{0.50\textwidth}
+    \textbf{Noisy \& leaky}
+    \begin{itemize}
+      \item 21.7\% of test products appear \emph{verbatim} in train
+      \item But product$\to$reactant map is \textbf{one-to-many}
+        (6.6\% of products map to $>1$ reactant set)
+      \item $\Rightarrow$ exact-lookup precision only $\sim$42\%
+      \item Orientation confirmed: test$\in$RIGHT 21.7\% $>$ LEFT 17.4\%
+    \end{itemize}
+  \end{columns}
+
+  \vspace{0.5em}
+  \textbf{Implication.} Realistic local top-1 $\approx 15$--35\% (not USPTO's
+  $\sim$0.45). Lookup alone is capped; the \textbf{neural model must generalize}
+  to the $\sim$78\% of products not covered by exact lookup.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{3. Our approach}
+  Template-free \textbf{encoder--decoder Transformer} (product $\to$ reactants),
+  wrapped in retrieval fallbacks and round-trip reranking.
+
+  \begin{enumerate}
+    \item \textbf{Retrieval baselines} (no GPU): exact-match lookup, kNN
+      (ECFP4 Tanimoto), identity -- a safety floor + cascade fallbacks.
+    \item \textbf{Seq2seq Transformer} -- the workhorse for uncovered products.
+      \emph{SMILES augmentation} (randomize source on the fly) is the single
+      biggest lever. Beam search + length penalty, set-level dedup.
+    \item \textbf{Forward model + round-trip rerank}: a reactants$\to$product
+      model scores whether a candidate reproduces the query -- directly
+      targets exact-match.
+    \item \textbf{Hybrid cascade}: lookup $\to$ neural beam $\to$ kNN $\to$
+      identity, guaranteeing one valid line per row.
+  \end{enumerate}
+
+  \medskip
+  \textbf{Honest local validation.} 2{,}000-row held-out split (seed 1234),
+  scored with the \emph{official} metric. Checkpoint on held-out top-1, not loss.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{4. Versions at a glance}
+  \small
+  \begin{tabular}{lp{6.2cm}rr}
+    \toprule
+    \textbf{ver.} & \textbf{what} & \textbf{local} & \textbf{server} \\
+    \midrule
+    v0 & exact-lookup / kNN / identity baselines     & 0.114 & --    \\
+    v1 & seq2seq Transformer (no aug, beam-5)         & 0.277 & --    \\
+    v2 & + SMILES augmentation, beam-10, TTA$\times$5 & 0.295 & --    \\
+    v3 & + forward model + round-trip cascade         & 0.299 & --    \\
+    v4 & candidate ensemble (v1$\cup$v2) + cascade    & 0.307 & 0.301 \\
+    \midrule
+    v5 & forward-likelihood reranking (tuned blend)   & 0.328$^\dagger$ & --    \\
+    v6 & 5-model ensemble + stronger forward + blend  & 0.374$^\dagger$ & 0.351 \\
+    v6big & bigger retro model (25\,M, beam-20)       & 0.318 & --    \\
+    v7 & \textbf{learned reranker} (logreg, 5-fold OOF) & 0.366 & \textbf{0.352} \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.5em}
+  $^\dagger$ Optimistic: tuned on the reported holdout. v7 is the honest,
+  leakage-free number.
+
+  \vspace{0.3em}
+  Two phases: \textbf{v0--v4} = build the generator; \textbf{v5--v7} = exploit
+  reranking over a candidate pool.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{5. Phase 1: building the generator (v0--v4)}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.55\textwidth}
+    \textbf{What moved the needle}
+    \begin{itemize}
+      \item Lookup baseline caps at \textbf{0.114} (1-to-many noise)
+      \item Neural seq2seq jumps to \textbf{0.277} -- it generalizes
+      \item \textbf{Augmentation = biggest single lever} (+1.8 pts,
+        v1$\to$v2) and prevents overfit
+      \item Round-trip cascade + ensembling: 0.295 $\to$ \textbf{0.307}
+    \end{itemize}
+
+    \medskip
+    \textbf{Lesson}
+    \begin{itemize}
+      \item Source randomization lets bigger models / more epochs keep
+        helping instead of overfitting
+    \end{itemize}
+
+    \column{0.45\textwidth}
+    \centering
+    \footnotesize
+    \begin{tabular}{lr}
+      \toprule
+      step & local top-1 \\
+      \midrule
+      exact lookup     & 0.114 \\
+      seq2seq (no aug) & 0.277 \\
+      + augmentation   & 0.295 \\
+      + round-trip     & 0.299 \\
+      ensemble+cascade & \textbf{0.307} \\
+      \bottomrule
+    \end{tabular}
+
+    \medskip
+    \footnotesize
+    Server-confirmed: \textbf{0.301}.
+  \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{6. Phase 2: the bottleneck is ranking, not coverage}
+  \textbf{Key diagnostic.} Over a 5-model candidate pool:
+  \begin{center}
+    \large
+    pool oracle $= \mathbf{0.82}$ \quad but \quad realized top-1 $\approx 0.45$
+  \end{center}
+  The gold reactant set is \emph{in the pool} 82\% of the time -- we just rank
+  it \#1 too rarely. \textbf{Ranking, not generation, is the ceiling.}
+
+  \medskip
+  \textbf{So we attacked the ranker.}
+  \begin{itemize}
+    \item v5 -- forward-likelihood blend (hand-tuned weights)
+    \item v6 -- 5 retro models + a stronger forward model + tuned blend
+    \item v7 -- \textbf{learned reranker}: logreg over candidate features,
+      trained 5-fold out-of-fold (no tuning leakage)
+  \end{itemize}
+
+  \medskip
+  Reranker feature weights: retro-consensus \textbf{1.55} $\gg$ forward-loglik
+  0.73 $\approx$ retro-rank 0.64 $\approx$ atom-balance 0.63 $>$ length/lookup.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{7. Error analysis -- where the gap lives}
+  \textbf{Decomposition of the gap (2k holdout).}
+  \begin{center}
+    \footnotesize
+    \begin{tabular}{lr}
+      \toprule
+      gold \emph{not} in pool (coverage ceiling) & 18.0\% \\
+      gold in pool \& picked \#1                  & 36.6\% \\
+      gold in pool but \textbf{mis-ranked}        & 45.4\% \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+
+  \medskip
+  \begin{itemize}
+    \item Half the mis-ranks are near-misses (\textbf{gold at rank 2: 31.6\%},
+      rank 3: 18.9\%) -- partly recoverable.
+    \item But the easy signal is exhausted: the forward model ranks gold
+      highest only \textbf{25\%} of the time (weak discriminator).
+    \item $\sim$57\% of our wrong picks are \emph{legitimate alternative}
+      reactant sets -- a real but bounded irreducible slice.
+    \item Multi-fragment is harder: 1-frag 39\% $>$ 2-frag 34\% $>$ 3-frag 13\%.
+  \end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{8. Final results}
+  \textbf{Server submissions (3 of budget used).}
+  \begin{center}
+    \footnotesize
+    \begin{tabular}{rllr}
+      \toprule
+      \# & date (2026) & version & server top-1 \\
+      \midrule
+      1 & Jun 24 18:07 & v4 ensemble + cascade   & 0.301 \\
+      2 & Jun 24 21:20 & v6 ensemble + tuned blend & 0.351 \\
+      3 & Jun 24 21:37 & v7 learned reranker     & \textbf{0.352} \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+
+  \medskip
+  \textbf{Best server result: 0.352} (v7; v6 = 0.351, statistically tied).
+
+  \vspace{0.4em}
+  \textbf{Honest reading.}
+  \begin{itemize}
+    \item The generative-ensemble + reranking family has \textbf{plateaued at
+      $\sim$0.35}: v5, v6, v7 all land there.
+    \item v7 was shipped over v6 because its \emph{out-of-fold} score (0.366)
+      is honest, while v6 tuned its blend on the holdout it reported.
+    \item Local proxy drifts optimistic as tuned components stack -- always
+      evaluate rerankers out-of-fold.
+  \end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{9. Lessons}
+  \begin{enumerate}
+    \item \textbf{Diagnose before you optimize.} The pool-oracle / realized-top-1
+      gap (0.82 vs 0.45) reframed the problem from ``generate better'' to
+      ``rank better'' -- and redirected all of phase 2.
+    \item \textbf{Augmentation $>$ architecture.} On-the-fly SMILES
+      randomization was the single biggest training lever and the prerequisite
+      for scaling the model at all.
+    \item \textbf{Evaluate out-of-fold.} Hand-tuned blends looked great until
+      an honest OOF reranker exposed the optimism; the local proxy drifted
+      +0.006 $\to$ +0.022 as tuned pieces stacked.
+    \item \textbf{Know when you've hit the ceiling.} Forward model, ensemble
+      breadth, and wider beams all saturated at $\sim$0.35; the only lever with
+      real upside left is a \emph{neural cross-encoder reranker}.
+  \end{enumerate}
+
+  \vspace{0.6em}
+  \begin{center}
+    \large\textbf{Thank you.}
+  \end{center}
+\end{frame}
+
+\end{document}
